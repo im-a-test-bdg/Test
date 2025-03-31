@@ -4,10 +4,10 @@ import tensorflow as tf
 
 def convert_to_mlmodel(model_path):
     try:
-        # Load the TensorFlow SavedModel
+        # Load the TensorFlow SavedModel with the appropriate tags
         print(f"Loading SavedModel from: {model_path}")
-        # Use tf.saved_model.load to load the entire SavedModel directory
-        loaded_model = tf.saved_model.load(model_path)
+        # Specify tags to load the correct MetaGraph (try tags=[] first)
+        loaded_model = tf.saved_model.load(model_path, tags=[])
 
         # Get the default serving signature
         print("Available signatures:", list(loaded_model.signatures.keys()))
