@@ -41,11 +41,12 @@ jobs:
           pip install --no-deps six==1.16.0
           pip install --no-deps absl-py==0.15.0
           pip install --no-deps astunparse==1.6.3
-          pip install --no-deps packaging==21.3  # Add packaging, compatible with TF 2.5.0 era
+          pip install --no-deps packaging==21.3
+          pip install --no-deps sympy==1.9  # Add sympy, compatible with 2021-era stack
           # Install coremltools last, no deps to avoid overrides
           pip install --no-deps coremltools==7.2
           # Verify versions
-          pip list | grep -E "numpy|typing-extensions|tensorflow|coremltools|tf2onnx|protobuf|six|absl-py|astunparse|packaging"
+          pip list | grep -E "numpy|typing-extensions|tensorflow|coremltools|tf2onnx|protobuf|six|absl-py|astunparse|packaging|sympy"
 
       # Create conversion script
       - name: Create conversion script
