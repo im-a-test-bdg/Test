@@ -11,65 +11,92 @@ on:
 jobs:
   convert-to-mlmodel:
     runs-on: macos-latest  # macOS runner needed for coremltools
-    
+
     steps:
-    # Checkout the repository
-    - name: Checkout Repository
-      uses: actions/checkout@v3
+      # Checkout the repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4  # Updated to latest version
 
-    # Set up Python environment
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.13.2'  # Specify a compatible Python version
+      # Set up Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5  # Updated to latest version
+        with:
+          python-version: '3.12'  # Use a stable, recent version (3.13.2 is not widely tested yet)
 
-    # Install dependencies
-    - name: Install Dependencies
-      run: |
-        pip install tensorflow==2.18.0 coremltools  # Specify a compatible TensorFlow version
+      # Cache pip dependencies
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-    # Extract and convert the model
-    - name: Convert to MLModel
-      run: |
-        # Extract the tar.gz file
-        mkdir -p ./extracted_model
-        tar -xzf ./model.tar.gz -C ./extracted_model/
+      # Install dependencies
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install tensorflow==2.17.0 coremltools==7.2  # Use stable, compatible versions
 
-        # Python script to convert
-        python - <<'EOF'
-        import tensorflow as tf
-        import coremltools as ct
-        import os
+      # Extract and convert the model
+      - name: Convert to MLModel
+        run: |
+          # Create directory for extraction
+          mkdir -p ./extracted_model
 
-        # Find the model directory in extracted files
-        model_dir = './extracted_model/'
-        for item in os.listdir(model_dir):
-            if os.path.isdir(os.path.join(model_dir, item)):
-                model_path = os.path.join(model_dir, item)
-                break
+          # Extract the tar.gz file
+          tar -xzf ./model.tar.gz -C ./extracted_model/ || { echo "Failed to extract model.tar.gz"; exit 1; }
 
-        # Load TensorFlow model
-        tf_model = tf.keras.models.load_model(model_path)
+          # Python script to convert
+          python - <<'EOF'
+          import tensorflow as tf
+          import coremltools as ct
+          import os
+          import sys
 
-        # Convert to Core ML
-        mlmodel = ct.convert(
-            tf_model,
-            source='tensorflow',
-            convert_to='mlmodel'
-        )
+          # Find the model directory in extracted files
+          model_dir = './extracted_model/'
+          model_path = None
+          for item in os.listdir(model_dir):
+              full_path = os.path.join(model_dir, item)
+              if os.path.isdir(full_path):
+                  model_path = full_path
+                  break
+          if not model_path:
+              print("Error: No model directory found in extracted files")
+              sys.exit(1)
 
-        # Save the converted model
-        output_path = './converted_model.mlmodel'
-        mlmodel.save(output_path)
-        EOF
+          # Load TensorFlow model
+          try:
+              tf_model = tf.keras.models.load_model(model_path)
+          except Exception as e:
+              print(f"Error loading TensorFlow model: {e}")
+              sys.exit(1)
 
-    # Commit and push the converted model
-    - name: Commit and Push to GitHub
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git add ./converted_model.mlmodel
-        git commit -m "Add converted MLModel [$(date +'%Y-%m-%d')]" || echo "No changes to commit"
-        git push
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Convert to Core ML
+          try:
+              mlmodel = ct.convert(
+                  tf_model,
+                  source='tensorflow',
+                  convert_to='mlmodel'
+              )
+          except Exception as e:
+              print(f"Error converting to Core ML: {e}")
+              sys.exit(1)
+
+          # Save the converted model
+          output_path = './converted_model.mlmodel'
+          mlmodel.save(output_path)
+          print(f"Model successfully converted and saved to {output_path}")
+          EOF
+
+      # Commit and push the converted model
+      - name: Commit and Push to GitHub
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ./converted_model.mlmodel
+          git commit -m "Add converted MLModel [$(date +'%Y-%m-%d %H:%M:%S UTC')]" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
