@@ -41,13 +41,25 @@ jobs:
           # Extract tar.gz
           tar -xzf mobilebert.tar.gz -C mobilebert_extracted
           
-          # Convert to CoreML
+          # Convert to CoreML using tf.saved_model.load()
           python3 - <<EOF
           import coremltools as ct
           import tensorflow as tf
-          model = tf.keras.models.load_model("mobilebert_extracted/saved_model")
+          loaded_model = tf.saved_model.load("mobilebert_extracted/saved_model")
+          
+          class WrappedModel(tf.Module):
+              def __init__(self, saved_model):
+                  super(WrappedModel, self).__init__()
+                  self.saved_model = saved_model
+              
+              @tf.function(input_signature=[tf.TensorSpec(shape=[1, 128], dtype=tf.int32, name="input_ids")])
+              def predict(self, input_ids):
+                  outputs = self.saved_model.signatures['serving_default'](input_ids=input_ids)
+                  return outputs['outputs']  # Adjust key based on actual output name
+          
+          wrapped_model = WrappedModel(loaded_model)
           mlmodel = ct.convert(
-              model,
+              wrapped_model,
               source="tensorflow",
               inputs=[ct.TensorType(name="input_ids", shape=(1, 128), dtype=tf.int32)],
               respect_trainable=True
