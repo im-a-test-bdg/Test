@@ -1,4 +1,4 @@
-name: Download and Convert MobileBERT to Core ML
+name: Download and Convert MobileBERT to Core ML Release
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch: # Allows manual triggering
 
 jobs:
-  convert-model:
+  convert-and-release:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,19 +39,27 @@ jobs:
           MODEL_PATH=$(cat model_path.txt | grep "Model downloaded to:" | cut -d' ' -f3)
           python convert_to_coreml.py "$MODEL_PATH"
 
-      # Step 6: Upload the .mlmodel as an artifact
-      - name: Upload Core ML model artifact
-        uses: actions/upload-artifact@v4
+      # Step 6: Create a GitHub Release
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Automatically provided by GitHub
         with:
-          name: mobilebert-mlmodel
-          path: mobilebert.mlmodel
+          tag_name: v${{ github.run_number }} # Creates a unique tag like v1, v2, etc.
+          release_name: MobileBERT Core ML Model v${{ github.run_number }}
+          draft: false
+          prerelease: false
+          body: |
+            Automated release of MobileBERT model converted to Core ML format (.mlmodel).
 
-      # Optional Step 7: Commit and push the .mlmodel to the repository
-      - name: Commit and push model
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add mobilebert.mlmodel
-          git commit -m "Add converted MobileBERT .mlmodel"
-          git push
-        if: success() # Only runs if previous steps succeed
+      # Step 7: Upload the .mlmodel as a release asset
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # From create_release step
+          asset_path: ./mobilebert.mlmodel
+          asset_name: mobilebert.mlmodel
+          asset_content_type: application/octet-stream
