@@ -44,11 +44,12 @@ jobs:
           pip install --no-deps packaging==21.3
           pip install --no-deps sympy==1.9
           pip install --no-deps mpmath==1.2.1
-          pip install --no-deps attrs==22.1.0  # Add attrs, compatible with coremltools 7.2
+          pip install --no-deps attrs==22.1.0
+          pip install --no-deps tqdm==4.64.1  # Add tqdm, compatible with 2021-2022 stack
           # Install coremltools last, no deps to avoid overrides
           pip install --no-deps coremltools==7.2
           # Verify versions
-          pip list | grep -E "numpy|typing-extensions|tensorflow|coremltools|tf2onnx|protobuf|six|absl-py|astunparse|packaging|sympy|mpmath|attrs"
+          pip list | grep -E "numpy|typing-extensions|tensorflow|coremltools|tf2onnx|protobuf|six|absl-py|astunparse|packaging|sympy|mpmath|attrs|tqdm"
 
       # Create conversion script
       - name: Create conversion script
