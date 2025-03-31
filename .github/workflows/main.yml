@@ -18,7 +18,8 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install coremltools tensorflow
+        run: |
+          pip install coremltools tensorflow kaggle
 
       - name: Download and Convert Model
         run: |
@@ -26,19 +27,22 @@ jobs:
           KAGGLE_USERNAME="josephcristini"
           KAGGLE_KEY="ae9de1e12100d4a02f851f52e071f6ea"
           
+          # Configure Kaggle CLI
+          mkdir -p ~/.kaggle
+          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+          
           # Download from Kaggle
-          curl -L -o model.tar.gz \
-            https://www.kaggle.com/api/v1/models/google/mobilebert/tensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1/download \
-            -H "Authorization: Basic $(echo -n "$KAGGLE_USERNAME:$KAGGLE_KEY" | base64)"
+          kaggle models instances versions download google/mobilebert/tensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1 -p .
           
           # Extract
-          tar -xzf model.tar.gz -C .
+          unzip -o mobilebert.zip -d mobilebert_extracted
           
           # Convert to CoreML
           python3 - <<EOF
           import coremltools as ct
           import tensorflow as tf
-          model = tf.keras.models.load_model("saved_model")
+          model = tf.keras.models.load_model("mobilebert_extracted/saved_model")
           mlmodel = ct.convert(
               model,
               source="tensorflow",
