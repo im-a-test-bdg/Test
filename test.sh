@@ -45,18 +45,33 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Python script for conversion
+# Python script for conversion using tf.saved_model.load()
 cat << EOF > convert_to_coreml.py
 import coremltools as ct
 import tensorflow as tf
 
-# Load TensorFlow model
+# Load legacy SavedModel
 model_path = "$EXTRACT_DIR/saved_model"
-model = tf.keras.models.load_model(model_path)
+loaded_model = tf.saved_model.load(model_path)
+
+# Wrap the model in a callable function for CoreML conversion
+class WrappedModel(tf.Module):
+    def __init__(self, saved_model):
+        super(WrappedModel, self).__init__()
+        self.saved_model = saved_model
+
+    @tf.function(input_signature=[tf.TensorSpec(shape=[1, 128], dtype=tf.int32, name="input_ids")])
+    def predict(self, input_ids):
+        # Assuming the SavedModel has a 'serving_default' signature
+        outputs = self.saved_model.signatures['serving_default'](input_ids=input_ids)
+        return outputs['outputs']  # Adjust key based on actual output name
+
+# Create an instance of the wrapped model
+wrapped_model = WrappedModel(loaded_model)
 
 # Convert to CoreML
 mlmodel = ct.convert(
-    model,
+    wrapped_model,
     source="tensorflow",
     inputs=[ct.TensorType(name="input_ids", shape=(1, 128), dtype=tf.int32)],
     respect_trainable=True
