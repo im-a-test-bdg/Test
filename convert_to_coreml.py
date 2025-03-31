@@ -4,39 +4,34 @@ import tensorflow as tf
 
 def convert_to_mlmodel(model_path):
     try:
-        # Load the TensorFlow 1 SavedModel
+        # Load the TensorFlow SavedModel
         print(f"Loading SavedModel from: {model_path}")
-        with tf.io.gfile.GFile(f"{model_path}/saved_model.pb", "rb") as f:
-            graph_def = tf.compat.v1.GraphDef()
-            graph_def.ParseFromString(f.read())
+        # Use tf.saved_model.load to load the entire SavedModel directory
+        loaded_model = tf.saved_model.load(model_path)
 
-        # Import the graph definition into a new TensorFlow graph
-        with tf.Graph().as_default() as graph:
-            tf.import_graph_def(graph_def, name="")
-
-        # Inspect the graph to find input and output tensors
-        print("Graph operations:")
-        for op in graph.get_operations():
-            print(op.name)
+        # Get the default serving signature
+        print("Available signatures:", list(loaded_model.signatures.keys()))
+        signature = loaded_model.signatures["serving_default"]
+        print("Signature inputs:", signature.inputs)
+        print("Signature outputs:", signature.outputs)
 
         # Define input shape (MobileBERT typically expects [batch, seq_length])
-        # MobileBERT often expects multiple inputs: input_ids, attention_mask, token_type_ids
         input_shape = [1, 384]  # Batch size 1, sequence length 384 (adjust as needed)
 
         # MobileBERT typically has inputs like "input_ids", "attention_mask", "token_type_ids"
         # Outputs are often "logits" or "pooled_output" for classification tasks
-        # Adjust these based on the graph inspection above
+        # Adjust these based on the output of saved_model_cli or the signature above
         inputs = [
             ct.TensorType(name="input_ids", shape=input_shape, dtype=int),
             ct.TensorType(name="attention_mask", shape=input_shape, dtype=int),
             ct.TensorType(name="token_type_ids", shape=input_shape, dtype=int),
         ]
-        outputs = ["pooled_output"]  # Adjust based on your task (e.g., "logits" for classification)
+        outputs = ["pooled_output"]  # Adjust based on the signature outputs
 
         # Convert to Core ML
         print("Converting to Core ML...")
         mlmodel = ct.convert(
-            graph,
+            loaded_model,
             inputs=inputs,
             outputs=outputs,
         )
