@@ -25,7 +25,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install coremltools tensorflow
+          pip install tensorflow==2.12.0 coremltools==7.0
+        env:
+          CUDA_VISIBLE_DEVICES: -1 # Disable GPU to avoid CUDA factory errors
 
       # Step 4: Download the .tar.gz file from Dropbox
       - name: Download MobileBERT .tar.gz
@@ -40,6 +42,7 @@ jobs:
           ls -la  # List files to debug what was extracted
           # The saved_model.pb is in the current directory after extraction
           echo "Extracted model path: $(pwd)" > model_path.txt
+          cat model_path.txt  # Debug: Show the model path
 
       # Step 6: Convert the model to Core ML
       - name: Convert to .mlmodel
