@@ -40,7 +40,7 @@ jobs:
 
           # Load the TensorFlow SavedModel from root directory with 'train' tag
           try:
-              model = tf.saved_model.load('./', tags=['train'])  # Added tags=['train']
+              model = tf.saved_model.load('./', tags=['train'])
               print("TensorFlow model loaded successfully from root directory with 'train' tag")
           except Exception as e:
               print(f"Error loading TensorFlow model: {e}")
@@ -48,10 +48,11 @@ jobs:
 
           # Convert to Core ML model
           try:
-              # Basic conversion; adjust inputs/outputs if needed
+              # Explicitly specify TensorFlow as source
               mlmodel = ct.convert(
                   model,
-                  inputs=[ct.TensorType(name='input', shape=(1, 224, 224, 3))]  # Example input shape; adjust as needed
+                  inputs=[ct.TensorType(name='input', shape=(1, 224, 224, 3))],  # Example input shape; adjust as needed
+                  source='tensorflow'  # Added source parameter
               )
               print("Model converted to Core ML successfully")
           except Exception as e:
