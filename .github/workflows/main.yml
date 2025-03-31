@@ -25,42 +25,30 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tensorflow==2.12.0 coremltools==7.0
+          pip install tensorflow==2.12.0 coremltools==7.0 kagglehub
         env:
           CUDA_VISIBLE_DEVICES: -1 # Disable GPU to avoid CUDA factory errors
 
-      # Step 4: Download the .tar.gz file from Dropbox
-      - name: Download MobileBERT .tar.gz
+      # Step 4: Download the model from KaggleHub
+      - name: Download MobileBERT from KaggleHub
         run: |
-          curl -L "https://www.dropbox.com/scl/fi/hjeimijvefkw5yga60fam/mobilebert-tensorflow1-uncased-l-24-h-128-b-512-a-4-f-4-opt-v1.tar.gz?rlkey=tz9l4x95bx3qzfosq514c5mg5&st=v5vbzd1t&dl=1" -o mobilebert.tar.gz
-          ls -la  # Verify the file was downloaded
-          # Check file size (should be ~92.3 MB)
-          echo "Downloaded file size:"
-          ls -lh mobilebert.tar.gz
-
-      # Step 5: Extract the .tar.gz file
-      - name: Extract MobileBERT
-        run: |
-          tar -xzf mobilebert.tar.gz
-          ls -la  # List files to debug what was extracted
-          # The saved_model.pb is in the current directory after extraction
-          echo "Extracted model path: $(pwd)" > model_path.txt
+          python -c "import kagglehub; path = kagglehub.model_download('google/mobilebert/TensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1'); print(f'Extracted model path: {path}')" > model_path.txt
           cat model_path.txt  # Debug: Show the model path
 
-      # Step 6: Inspect the SavedModel
+      # Step 5: Inspect the SavedModel
       - name: Inspect SavedModel
         run: |
           MODEL_PATH=$(sed -n 's/Extracted model path: //p' model_path.txt)
           saved_model_cli show --dir "$MODEL_PATH" --all
 
-      # Step 7: Convert the model to Core ML
+      # Step 6: Convert the model to Core ML
       - name: Convert to .mlmodel
         run: |
           MODEL_PATH=$(sed -n 's/Extracted model path: //p' model_path.txt)
           echo "Using MODEL_PATH: $MODEL_PATH"  # Debug: Confirm the path
           python convert_to_coreml.py "$MODEL_PATH"
 
-      # Step 8: Create a GitHub Release
+      # Step 7: Create a GitHub Release
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -72,9 +60,9 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            Automated release of MobileBERT model converted from Dropbox .tar.gz to Core ML format (.mlmodel).
+            Automated release of MobileBERT model converted from KaggleHub to Core ML format (.mlmodel).
 
-      # Step 9: Upload the .mlmodel as a release asset
+      # Step 8: Upload the .mlmodel as a release asset
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
