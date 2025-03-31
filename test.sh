@@ -6,7 +6,7 @@ KAGGLE_KEY="ae9de1e12100d4a02f851f52e071f6ea"
 
 # Set variables
 DOWNLOAD_DIR=~/Downloads
-MODEL_ZIP="$DOWNLOAD_DIR/mobilebert.zip"  # Kaggle CLI downloads as .zip
+MODEL_TAR="$DOWNLOAD_DIR/mobilebert.tar.gz"  # Corrected to .tar.gz
 EXTRACT_DIR="$DOWNLOAD_DIR/mobilebert_extracted"
 OUTPUT_MODEL="$DOWNLOAD_DIR/MobileBERT.mlmodel"
 
@@ -29,15 +29,15 @@ fi
 echo "Downloading MobileBERT from Kaggle..."
 kaggle models instances versions download google/mobilebert/tensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1 -p "$DOWNLOAD_DIR"
 
-# Check download
-if [ $? -ne 0 ] || [ ! -f "$MODEL_ZIP" ]; then
+# Check(download
+if [ $? -ne 0 ] || [ ! -f "$MODEL_TAR" ]; then
   echo "Error: Failed to download model. Check credentials or network."
   exit 1
 fi
 
-# Extract the zip (Kaggle CLI downloads as .zip, not .tar.gz)
+# Extract the tar.gz file
 echo "Extracting model..."
-unzip -o "$MODEL_ZIP" -d "$EXTRACT_DIR"
+tar -xzf "$MODEL_TAR" -C "$EXTRACT_DIR"
 
 if [ $? -ne 0 ]; then
   echo "Error: Failed to extract model."
