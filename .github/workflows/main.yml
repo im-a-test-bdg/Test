@@ -35,6 +35,9 @@ jobs:
           # Download from Kaggle
           kaggle models instances versions download google/mobilebert/tensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1 -p .
           
+          # Create extraction directory
+          mkdir -p mobilebert_extracted
+          
           # Extract tar.gz
           tar -xzf mobilebert.tar.gz -C mobilebert_extracted
           
