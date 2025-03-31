@@ -21,13 +21,14 @@ jobs:
         with:
           python-version: '3.8' # TensorFlow 2.2.0 is compatible with Python 3.8
 
-      # Install dependencies (TensorFlow 2.2.0, coremltools, and protobuf 3.20.1)
+      # Install dependencies (TensorFlow 2.2.0, coremltools, protobuf, and numpy)
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install numpy==1.18.0  # Pin numpy to a compatible version
           pip install tensorflow==2.2.0
           pip install coremltools==5.2.0
-          pip install protobuf==3.20.1 # Downgrade to avoid compatibility issues
+          pip install protobuf==3.20.1  # Downgrade to avoid compatibility issues
 
       # Create a Python script for conversion
       - name: Create conversion script
