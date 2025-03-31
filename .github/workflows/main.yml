@@ -1,0 +1,61 @@
+name: Convert MobileBERT and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  convert-and-release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install coremltools tensorflow
+
+      - name: Download and Convert Model
+        run: |
+          # Hardcoded Kaggle credentials
+          KAGGLE_USERNAME="josephcristini"
+          KAGGLE_KEY="ae9de1e12100d4a02f851f52e071f6ea"
+          
+          # Download from Kaggle
+          curl -L -o model.tar.gz \
+            https://www.kaggle.com/api/v1/models/google/mobilebert/tensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1/download \
+            -H "Authorization: Basic $(echo -n "$KAGGLE_USERNAME:$KAGGLE_KEY" | base64)"
+          
+          # Extract
+          tar -xzf model.tar.gz -C .
+          
+          # Convert to CoreML
+          python3 - <<EOF
+          import coremltools as ct
+          import tensorflow as tf
+          model = tf.keras.models.load_model("saved_model")
+          mlmodel = ct.convert(
+              model,
+              source="tensorflow",
+              inputs=[ct.TensorType(name="input_ids", shape=(1, 128), dtype=tf.int32)],
+              respect_trainable=True
+          )
+          from coremltools.models import optimize
+          optimized_model = optimize.quantize_weights(mlmodel, quantization_mode="linear", nbits=8)
+          optimized_model.save("MobileBERT.mlmodel")
+          EOF
+
+      - name: Create Release and Upload Model
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v1.0.${{ github.run_number }}"
+          name: "MobileBERT Release ${{ github.run_number }}"
+          body: "Converted MobileBERT for CoreML."
+          files: MobileBERT.mlmodel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
