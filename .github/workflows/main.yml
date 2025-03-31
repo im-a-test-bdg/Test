@@ -1,80 +1,57 @@
-name: Convert MobileBERT and Release
+name: Download and Convert MobileBERT to Core ML
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
-  convert-and-release:
-    runs-on: macos-latest
+  convert-model:
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      # Step 1: Check out the repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Step 2: Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10' # Use a version compatible with coremltools
 
+      # Step 3: Install dependencies
       - name: Install dependencies
         run: |
-          pip install coremltools tensorflow kaggle
+          python -m pip install --upgrade pip
+          pip install kagglehub coremltools tensorflow
 
-      - name: Download and Convert Model
+      # Step 4: Download the MobileBERT model from KaggleHub
+      - name: Download MobileBERT model
         run: |
-          # Hardcoded Kaggle credentials
-          KAGGLE_USERNAME="josephcristini"
-          KAGGLE_KEY="ae9de1e12100d4a02f851f52e071f6ea"
-          
-          # Configure Kaggle CLI
-          mkdir -p ~/.kaggle
-          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
-          chmod 600 ~/.kaggle/kaggle.json
-          
-          # Download from Kaggle
-          kaggle models instances versions download google/mobilebert/tensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1 -p .
-          
-          # Create extraction directory
-          mkdir -p mobilebert_extracted
-          
-          # Extract tar.gz
-          tar -xzf mobilebert.tar.gz -C mobilebert_extracted
-          
-          # Convert to CoreML using tf.saved_model.load()
-          python3 - <<EOF
-          import coremltools as ct
-          import tensorflow as tf
-          loaded_model = tf.saved_model.load("mobilebert_extracted/saved_model")
-          
-          class WrappedModel(tf.Module):
-              def __init__(self, saved_model):
-                  super(WrappedModel, self).__init__()
-                  self.saved_model = saved_model
-              
-              @tf.function(input_signature=[tf.TensorSpec(shape=[1, 128], dtype=tf.int32, name="input_ids")])
-              def predict(self, input_ids):
-                  outputs = self.saved_model.signatures['serving_default'](input_ids=input_ids)
-                  return outputs['outputs']  # Adjust key based on actual output name
-          
-          wrapped_model = WrappedModel(loaded_model)
-          mlmodel = ct.convert(
-              wrapped_model,
-              source="tensorflow",
-              inputs=[ct.TensorType(name="input_ids", shape=(1, 128), dtype=tf.int32)],
-              respect_trainable=True
-          )
-          from coremltools.models import optimize
-          optimized_model = optimize.quantize_weights(mlmodel, quantization_mode="linear", nbits=8)
-          optimized_model.save("MobileBERT.mlmodel")
-          EOF
+          python -c "import kagglehub; path = kagglehub.model_download('google/mobilebert/TensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1'); print(f'Model downloaded to: {path}')" > model_path.txt
+          cat model_path.txt
 
-      - name: Create Release and Upload Model
-        uses: softprops/action-gh-release@v2
+      # Step 5: Convert the model to Core ML
+      - name: Convert to .mlmodel
+        run: |
+          MODEL_PATH=$(cat model_path.txt | grep "Model downloaded to:" | cut -d' ' -f3)
+          python convert_to_coreml.py "$MODEL_PATH"
+
+      # Step 6: Upload the .mlmodel as an artifact
+      - name: Upload Core ML model artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: "v1.0.${{ github.run_number }}"
-          name: "MobileBERT Release ${{ github.run_number }}"
-          body: "Converted MobileBERT for CoreML."
-          files: MobileBERT.mlmodel
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: mobilebert-mlmodel
+          path: mobilebert.mlmodel
+
+      # Optional Step 7: Commit and push the .mlmodel to the repository
+      - name: Commit and push model
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add mobilebert.mlmodel
+          git commit -m "Add converted MobileBERT .mlmodel"
+          git push
+        if: success() # Only runs if previous steps succeed
