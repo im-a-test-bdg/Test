@@ -1,141 +1,65 @@
-name: Convert TensorFlow Model to Core ML and Create PR
+name: Convert Model and Release
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
-  convert-and-pr:
-    runs-on: ubuntu-latest
-
+  convert-and-release:
+    runs-on: macos-latest # macOS is required for CoreML tools
+    
     steps:
-      # Checkout the repository
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      # Set up Python environment
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.8' # TF 2.5.0 compatible
+          python-version: '3.9' # Specify your preferred Python version
 
-      # Install system dependencies
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpython3-dev cmake  # For coremltools build
-
-      # Install dependencies with strict control
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Install base TensorFlow to get its core deps
-          pip install tensorflow==2.5.0
-          # Overwrite with exact versions, no dependencies
-          pip install --no-deps numpy==1.19.5
-          pip install --no-deps typing-extensions==3.7.4
-          pip install --no-deps protobuf==3.20.3
-          pip install --no-deps tf2onnx==1.16.1
-          pip install --no-deps six==1.16.0
-          pip install --no-deps absl-py==0.15.0
-          pip install --no-deps astunparse==1.6.3
-          pip install --no-deps packaging==21.3
-          pip install --no-deps sympy==1.9
-          pip install --no-deps mpmath==1.2.1
-          pip install --no-deps attrs==22.1.0
-          pip install --no-deps tqdm==4.64.1
-          pip install --no-deps cattrs==22.2.0  # Add cattrs, compatible with attrs and coremltools
-          # Install coremltools last, no deps to avoid overrides
-          pip install --no-deps coremltools==7.2
-          # Verify versions
-          pip list | grep -E "numpy|typing-extensions|tensorflow|coremltools|tf2onnx|protobuf|six|absl-py|astunparse|packaging|sympy|mpmath|attrs|tqdm|cattrs"
+          pip install torch transformers onnx-coreml coremltools numpy
 
-      # Create conversion script
-      - name: Create conversion script
-        run: |
-          cat << 'EOF' > convert_model.py
-          import coremltools as ct
-          import tensorflow as tf
-          import tf2onnx
-          import onnx
-          import os
+      - name: Create Resources directory
+        run: mkdir -p ../Resources
 
-          # Load TensorFlow SavedModel
-          try:
-              model = tf.saved_model.load('./', tags=['train'])
-              print("TensorFlow model loaded")
-              concrete_func = model.signatures['tokens']
-              print(f"Concrete function: {concrete_func}")
-              print(f"Input spec: {concrete_func.structured_input_signature}")
-              
-              # Convert to ONNX
-              model_proto, _ = tf2onnx.convert.from_function(
-                  concrete_func,
-                  input_signature=concrete_func.structured_input_signature[1],
-                  output_path='model.onnx'
-              )
-              print("Converted to ONNX: model.onnx")
-          except Exception as e:
-              print(f"Error converting to ONNX: {str(e)}")
-              raise
-
-          # Convert ONNX to Core ML
-          try:
-              mlmodel = ct.convert(
-                  'model.onnx',
-                  inputs=[
-                      ct.TensorType(name='input_ids', shape=(1, 128), dtype=tf.int32),
-                      ct.TensorType(name='input_mask', shape=(1, 128), dtype=tf.int32),
-                      ct.TensorType(name='segment_ids', shape=(1, 128), dtype=tf.int32)
-                  ],
-                  source='onnx'
-              )
-              print("Converted to Core ML")
-              print("Inputs:")
-              for input_desc in mlmodel.input_description:
-                  print(f"  {input_desc}")
-          except Exception as e:
-              print(f"Error converting to Core ML: {str(e)}")
-              raise
-
-          # Save Core ML model
-          try:
-              mlmodel.save('model.mlmodel')
-              print("Saved as model.mlmodel")
-          except Exception as e:
-              print(f"Error saving Core ML model: {str(e)}")
-              raise
-          EOF
-
-      # Run the conversion script
       - name: Run conversion script
-        run: |
-          python convert_model.py
+        run: python convert_model.py # Save your script as convert_model.py
 
-      # Configure git
-      - name: Setup git config
-        run: |
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
-      # Create branch, commit, and push
-      - name: Create branch and commit
-        run: |
-          git checkout -b feature/convert-to-mlmodel-$(date +%Y%m%d-%H%M%S)
-          git add model.mlmodel
-          git commit -m "Convert TensorFlow NLP model to Core ML via ONNX" || echo "No changes to commit"
-          git push origin HEAD
-
-      # Create Pull Request
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: feature/convert-to-mlmodel-$(date +%Y%m%d-%H%M%S)
-          title: "Convert TensorFlow NLP Model to Core ML Format via ONNX"
-          body: |
-            Converts TensorFlow NLP model (BERT-based) to Core ML via ONNX.
-            Uses TensorFlow 2.5.0, tf2onnx 1.16.1, coremltools 7.2, Python 3.8.
-          commit-message: "Add converted Core ML model (model.mlmodel)"
+          tag_name: v${{ steps.date.outputs.date }}
+          release_name: Model Conversion ${{ steps.date.outputs.date }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Full Precision Model
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ../Resources/distilbert-squad-384.mlmodel
+          asset_name: distilbert-squad-384.mlmodel
+          asset_content_type: application/octet-stream
+
+      - name: Upload FP16 Model
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ../Resources/distilbert-squad-384_FP16.mlmodel
+          asset_name: distilbert-squad-384_FP16.mlmodel
+          asset_content_type: application/octet-stream
