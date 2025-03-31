@@ -1,74 +1,36 @@
-name: Download, Extract, and Convert MobileBERT to Core ML Release
+name: Download Model from Kaggle
 
 on:
   push:
     branches:
-      - main
-  workflow_dispatch: # Allows manual triggering
+      - main  # Change to the branch you're using if different
 
 jobs:
-  convert-and-release:
+  download:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Check out the repository
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      # Step 2: Set up Python
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10' # Use a version compatible with coremltools
+    - name: Download model from Kaggle
+      run: |
+        #!/bin/bash
+        
+        # Hardcoded Kaggle credentials
+        export KAGGLE_USERNAME="josephcristini"
+        export KAGGLE_KEY="c7709248cdacac4a44ea8beb53595247"
 
-      # Step 3: Install dependencies
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install tensorflow==2.12.0 coremltools==7.0 kagglehub
-        env:
-          CUDA_VISIBLE_DEVICES: -1 # Disable GPU to avoid CUDA factory errors
+        # Create Downloads directory if it doesn't exist
+        mkdir -p ~/Downloads
+        
+        # Download the model
+        curl -L -u $KAGGLE_USERNAME:$KAGGLE_KEY \
+          -o ~/Downloads/model.tar.gz \
+          https://www.kaggle.com/api/v1/models/josephcristini/backdoor-ai/tensorFlow1/bdg/1/download
 
-      # Step 4: Download the model from KaggleHub
-      - name: Download MobileBERT from KaggleHub
-        run: |
-          python -c "import kagglehub; path = kagglehub.model_download('google/mobilebert/TensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1'); print(f'Extracted model path: {path}')" > model_path.txt
-          cat model_path.txt  # Debug: Show the model path
-
-      # Step 5: Inspect the SavedModel
-      - name: Inspect SavedModel
-        run: |
-          MODEL_PATH=$(sed -n 's/Extracted model path: //p' model_path.txt)
-          saved_model_cli show --dir "$MODEL_PATH" --all
-
-      # Step 6: Convert the model to Core ML
-      - name: Convert to .mlmodel
-        run: |
-          MODEL_PATH=$(sed -n 's/Extracted model path: //p' model_path.txt)
-          echo "Using MODEL_PATH: $MODEL_PATH"  # Debug: Confirm the path
-          python convert_to_coreml.py "$MODEL_PATH"
-
-      # Step 7: Create a GitHub Release
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ github.run_number }}
-          release_name: MobileBERT Core ML Model v${{ github.run_number }}
-          draft: false
-          prerelease: false
-          body: |
-            Automated release of MobileBERT model converted from KaggleHub to Core ML format (.mlmodel).
-
-      # Step 8: Upload the .mlmodel as a release asset
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./mobilebert.mlmodel
-          asset_name: mobilebert.mlmodel
-          asset_content_type: application/octet-stream
+    - name: Upload model to repository
+      uses: actions/upload-artifact@v2
+      with:
+        name: model
+        path: ~/Downloads/model.tar.gz
