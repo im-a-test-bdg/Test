@@ -38,36 +38,25 @@ jobs:
           import tensorflow as tf
           import os
 
-          # Load the TensorFlow SavedModel from root directory with 'train' tag
+          # Specify the SavedModel directory and signature
           try:
-              loaded = tf.saved_model.load('./', tags=['train'])
-              print("TensorFlow model loaded successfully from root directory with 'train' tag")
+              model_path = './'  # Root directory containing the SavedModel
+              print("Using SavedModel directory:", model_path)
           except Exception as e:
-              print(f"Error loading TensorFlow model: {e}")
+              print(f"Error setting model path: {e}")
               exit(1)
 
-          # Get the concrete function from the loaded model
-          try:
-              concrete_func = loaded.signatures['tokens']  # Using 'tokens' signature
-              print("Concrete function extracted successfully using 'tokens' signature")
-              print(f"Input spec: {concrete_func.structured_input_signature}")
-          except KeyError as e:
-              print(f"Error: 'tokens' signature not found. Available signatures: {list(loaded.signatures.keys())}")
-              exit(1)
-          except Exception as e:
-              print(f"Error getting concrete function: {e}")
-              exit(1)
-
-          # Convert to Core ML model using the concrete function
+          # Convert to Core ML model directly from SavedModel
           try:
               mlmodel = ct.convert(
-                  concrete_func,
+                  model_path,
                   inputs=[
                       ct.TensorType(name='input_ids', shape=(1, 128), dtype=tf.float32),  # Cast to float32
                       ct.TensorType(name='attention_mask', shape=(1, 128), dtype=tf.float32)  # Cast to float32
                   ],
                   source='tensorflow',
-                  convert_to='mlprogram'  # Use newer Core ML format which might handle types better
+                  # Specify the signature to use
+                  tensorflow_signature='tokens'
               )
               print("Model converted to Core ML successfully")
           except Exception as e:
