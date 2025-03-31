@@ -19,14 +19,14 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.8' # TensorFlow 1.x is compatible with Python 3.8
+          python-version: '3.8' # TensorFlow 2.2.0 is compatible with Python 3.8
 
-      # Install dependencies (TensorFlow 1.x and coremltools)
+      # Install dependencies (TensorFlow 2.2.0 and coremltools)
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tensorflow==1.15.0
-          pip install coremltools==4.1 # Older version for better TF 1.x compatibility
+          pip install tensorflow==2.2.0
+          pip install coremltools==5.2.0 # Compatible with TensorFlow 2.x
 
       # Create a Python script for conversion
       - name: Create conversion script
@@ -42,9 +42,8 @@ jobs:
 
           # Load the TensorFlow SavedModel
           try:
-              with tf.Session(graph=tf.Graph()) as sess:
-                  model = tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], 'Test')
-                  print("TensorFlow model loaded successfully")
+              model = tf.saved_model.load('Test')
+              print("TensorFlow model loaded successfully")
           except Exception as e:
               print(f"Error loading TensorFlow model: {e}")
               exit(1)
@@ -52,9 +51,9 @@ jobs:
           # Convert to Core ML model
           try:
               # Basic conversion; adjust inputs/outputs if needed
-              mlmodel = ct.converters.tensorflow.convert(
-                  'Test',
-                  inputs={'input': [1, 224, 224, 3]}  # Example input shape; adjust as needed
+              mlmodel = ct.convert(
+                  model,
+                  inputs=[ct.TensorType(name='input', shape=(1, 224, 224, 3))]  # Example input shape; adjust as needed
               )
               print("Model converted to Core ML successfully")
           except Exception as e:
