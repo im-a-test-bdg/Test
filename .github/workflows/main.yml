@@ -21,12 +21,12 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.8'  # Specify a compatible Python version
+        python-version: '3.13.2'  # Specify a compatible Python version
 
     # Install dependencies
     - name: Install Dependencies
       run: |
-        pip install tensorflow==2.9.0 coremltools  # Specify a compatible TensorFlow version
+        pip install tensorflow==2.18.0 coremltools  # Specify a compatible TensorFlow version
 
     # Extract and convert the model
     - name: Convert to MLModel
