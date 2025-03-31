@@ -1,4 +1,4 @@
-name: Download and Convert MobileBERT to Core ML Release
+name: Download, Extract, and Convert MobileBERT to Core ML Release
 
 on:
   push:
@@ -25,41 +25,51 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install kagglehub coremltools tensorflow
+          pip install coremltools tensorflow
 
-      # Step 4: Download the MobileBERT model from KaggleHub
-      - name: Download MobileBERT model
+      # Step 4: Download the .tar.gz file from Dropbox
+      - name: Download MobileBERT .tar.gz
         run: |
-          python -c "import kagglehub; path = kagglehub.model_download('google/mobilebert/TensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1'); print(f'Model downloaded to: {path}')" > model_path.txt
-          cat model_path.txt
+          # Modify Dropbox URL to force download (change dl=0 to dl=1)
+          curl -L "https://www.dropbox.com/scl/fi/hjeimijvefkw5yga60fam/mobilebert-tensorflow1-uncased-l-24-h-128-b-512-a-4-f-4-opt-v1.tar.gz?rlkey=tz9l4x95bx3qzfosq514c5mg5&st=v5vbzd1t&dl=1" -o mobilebert.tar.gz
+          ls -la  # Verify the file was downloaded
 
-      # Step 5: Convert the model to Core ML
+      # Step 5: Extract the .tar.gz file
+      - name: Extract MobileBERT
+        run: |
+          tar -xzf mobilebert.tar.gz
+          ls -la  # List files to debug what was extracted
+          # Assuming it extracts to a directory with saved_model.pb
+          # Adjust this path based on actual extracted contents
+          echo "Extracted model path: $(pwd)/saved_model" > model_path.txt
+
+      # Step 6: Convert the model to Core ML
       - name: Convert to .mlmodel
         run: |
-          MODEL_PATH=$(cat model_path.txt | grep "Model downloaded to:" | cut -d' ' -f3)
+          MODEL_PATH=$(cat model_path.txt | grep "Extracted model path:" | cut -d' ' -f3)
           python convert_to_coreml.py "$MODEL_PATH"
 
-      # Step 6: Create a GitHub Release
+      # Step 7: Create a GitHub Release
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Automatically provided by GitHub
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ github.run_number }} # Creates a unique tag like v1, v2, etc.
+          tag_name: v${{ github.run_number }}
           release_name: MobileBERT Core ML Model v${{ github.run_number }}
           draft: false
           prerelease: false
           body: |
-            Automated release of MobileBERT model converted to Core ML format (.mlmodel).
+            Automated release of MobileBERT model converted from Dropbox .tar.gz to Core ML format (.mlmodel).
 
-      # Step 7: Upload the .mlmodel as a release asset
+      # Step 8: Upload the .mlmodel as a release asset
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # From create_release step
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./mobilebert.mlmodel
           asset_name: mobilebert.mlmodel
           asset_content_type: application/octet-stream
