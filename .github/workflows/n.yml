@@ -19,16 +19,16 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9' # Python 3.9 for coremltools 7.2 compatibility
+          python-version: '3.9' # Python 3.9 for coremltools 7.2 and tf2onnx compatibility
 
-      # Install dependencies (TensorFlow 2.5.0, coremltools 7.2, and compatible versions)
+      # Install dependencies (TensorFlow 2.5.0, coremltools 7.2, tf2onnx, and compatible versions)
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install numpy==1.23.5  # Compatible with TF 2.5.0 and coremltools 7.2
-          pip uninstall coremltools -y  # Ensure clean uninstall
+          pip install numpy==1.23.5  # Compatible with TF 2.5.0, coremltools 7.2, and tf2onnx
           pip install tensorflow==2.5.0
-          pip install coremltools==7.2 --no-cache-dir  # Force fresh install
+          pip install coremltools==7.2
+          pip install tf2onnx==1.16.1  # Latest version compatible with TF 2.5.0
           pip install protobuf==3.20.3  # Compatible with TF 2.5.0
 
       # Create a Python script for conversion
@@ -37,47 +37,48 @@ jobs:
           cat << 'EOF' > convert_model.py
           import coremltools as ct
           import tensorflow as tf
+          import tf2onnx
+          import onnx
           import os
 
-          # Load the TensorFlow SavedModel from root directory with 'train' tag
+          # Step 1: Load the TensorFlow SavedModel and convert to ONNX
           try:
-              loaded = tf.saved_model.load('./', tags=['train'])
+              model = tf.saved_model.load('./', tags=['train'])
               print("TensorFlow model loaded successfully from root directory with 'train' tag")
-          except Exception as e:
-              print(f"Error loading TensorFlow model: {e}")
-              exit(1)
-
-          # Get the concrete function from the loaded model
-          try:
-              concrete_func = loaded.signatures['tokens']
+              # Get the concrete function for the 'tokens' signature
+              concrete_func = model.signatures['tokens']
               print("Concrete function extracted successfully using 'tokens' signature")
               print(f"Input spec: {concrete_func.structured_input_signature}")
-          except KeyError as e:
-              print(f"Error: 'tokens' signature not found. Available signatures: {list(loaded.signatures.keys())}")
-              exit(1)
+              
+              # Convert to ONNX
+              model_proto, _ = tf2onnx.convert.from_function(
+                  concrete_func,
+                  input_signature=concrete_func.structured_input_signature[1],  # Use the input spec
+                  output_path='model.onnx'
+              )
+              print("Model converted to ONNX successfully, saved as model.onnx")
           except Exception as e:
-              print(f"Error getting concrete function: {e}")
+              print(f"Error converting TensorFlow model to ONNX: {e}")
               exit(1)
 
-          # Define flexible shape with RangeDim for sequence length
-          sequence_range = ct.RangeDim(lower_bound=1, upper_bound=512, default=128)
-          input_shape = (1, sequence_range)  # Batch size 1, flexible sequence length
-
-          # Convert to Core ML model using a list of concrete functions
+          # Step 2: Convert ONNX to Core ML
           try:
               mlmodel = ct.convert(
-                  [concrete_func],  # Wrap in list to match expected format
+                  'model.onnx',
                   inputs=[
-                      ct.TensorType(name='input_ids', shape=input_shape, dtype=tf.int32),
-                      ct.TensorType(name='input_mask', shape=input_shape, dtype=tf.int32),
-                      ct.TensorType(name='segment_ids', shape=input_shape, dtype=tf.int32)
+                      ct.TensorType(name='input_ids', shape=(1, 128), dtype=tf.int32),
+                      ct.TensorType(name='input_mask', shape=(1, 128), dtype=tf.int32),
+                      ct.TensorType(name='segment_ids', shape=(1, 128), dtype=tf.int32)
                   ],
-                  source='tensorflow',
-                  convert_to='mlprogram'  # Use modern Core ML format
+                  source='onnx'
               )
-              print("Model converted to Core ML successfully")
+              print("ONNX model converted to Core ML successfully")
+              # Print input descriptions for debugging
+              print("Core ML model input descriptions:")
+              for input_desc in mlmodel.input_description:
+                  print(f"  {input_desc}")
           except Exception as e:
-              print(f"Error converting to Core ML: {e}")
+              print(f"Error converting ONNX to Core ML: {e}")
               exit(1)
 
           # Save the Core ML model in root directory
@@ -105,7 +106,7 @@ jobs:
         run: |
           git checkout -b feature/convert-to-mlmodel-$(date +%Y%m%d-%H%M%S)
           git add model.mlmodel
-          git commit -m "Convert TensorFlow NLP model to Core ML format" || echo "No changes to commit"
+          git commit -m "Convert TensorFlow NLP model to Core ML format via ONNX" || echo "No changes to commit"
           git push origin HEAD
 
       # Create Pull Request
@@ -114,9 +115,9 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: feature/convert-to-mlmodel-$(date +%Y%m%d-%H%M%S)
-          title: "Convert TensorFlow NLP Model to Core ML Format"
+          title: "Convert TensorFlow NLP Model to Core ML Format via ONNX"
           body: |
             This PR converts the TensorFlow NLP model (BERT-based) in the root directory to Core ML format (.mlmodel) using the 'train' tag and 'tokens' signature.
-            Uses TensorFlow 2.5.0 and coremltools 7.2 with Python 3.9, targeting 'mlprogram' format with RangeDim (1-512, default 128) for flexible sequence length and int32 inputs: input_ids, input_mask, segment_ids.
+            Uses TensorFlow 2.5.0, tf2onnx 1.16.1, and coremltools 7.2 with Python 3.9. Converted via ONNX to handle int32 inputs (input_ids, input_mask, segment_ids).
             Automatically generated by GitHub Actions workflow.
           commit-message: "Add converted Core ML model (model.mlmodel)"
