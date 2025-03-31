@@ -15,13 +15,13 @@ jobs:
     steps:
       # Checkout the repository
       - name: Checkout Repository
-        uses: actions/checkout@v4  # Updated to latest version
+        uses: actions/checkout@v4
 
       # Set up Python environment
       - name: Set up Python
-        uses: actions/setup-python@v5  # Updated to latest version
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'  # Use a stable, recent version (3.13.2 is not widely tested yet)
+          python-version: '3.12'  # Use a stable, recent version
 
       # Cache pip dependencies
       - name: Cache Dependencies
@@ -36,7 +36,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tensorflow==2.17.0 coremltools==7.2  # Use stable, compatible versions
+          pip install tensorflow==2.17.0 coremltools==7.2 numpy
 
       # Extract and convert the model
       - name: Convert to MLModel
@@ -53,6 +53,7 @@ jobs:
           import coremltools as ct
           import os
           import sys
+          import numpy as np
 
           # Find the model directory in extracted files
           model_dir = './extracted_model/'
@@ -66,17 +67,44 @@ jobs:
               print("Error: No model directory found in extracted files")
               sys.exit(1)
 
-          # Load TensorFlow model
+          # The model directory should be 'backdoor-ai-tensorflow1-bdg-v1', but it's still a MobileBERT model
+          print(f"Found model directory: {model_path}")
+
+          # Load TensorFlow SavedModel
           try:
-              tf_model = tf.keras.models.load_model(model_path)
+              tf_model = tf.saved_model.load(model_path)
           except Exception as e:
-              print(f"Error loading TensorFlow model: {e}")
+              print(f"Error loading TensorFlow SavedModel: {e}")
               sys.exit(1)
+
+          # Define a concrete function for conversion (Core ML requires a concrete function)
+          # MobileBERT expects input_ids, attention_mask, and token_type_ids
+          try:
+              concrete_func = tf_model.signatures["serving_default"]
+              if not concrete_func:
+                  print("Error: No serving_default signature found in SavedModel")
+                  sys.exit(1)
+              print("Model signatures:", tf_model.signatures.keys())
+              print("Input signature for serving_default:", concrete_func.structured_input_signature)
+          except Exception as e:
+              print(f"Error retrieving concrete function: {e}")
+              sys.exit(1)
+
+          # Define input shapes for MobileBERT (batch size 1, sequence length 128)
+          input_shape = (1, 128)  # Batch size 1, sequence length 128
+          input_ids = tf.TensorSpec(input_shape, tf.int32, name="input_ids")
+          attention_mask = tf.TensorSpec(input_shape, tf.int32, name="attention_mask")
+          token_type_ids = tf.TensorSpec(input_shape, tf.int32, name="token_type_ids")
 
           # Convert to Core ML
           try:
               mlmodel = ct.convert(
-                  tf_model,
+                  concrete_func,
+                  inputs=[
+                      ct.TensorType(name="input_ids", shape=input_shape, dtype=np.int32),
+                      ct.TensorType(name="attention_mask", shape=input_shape, dtype=np.int32),
+                      ct.TensorType(name="token_type_ids", shape=input_shape, dtype=np.int32),
+                  ],
                   source='tensorflow',
                   convert_to='mlmodel'
               )
