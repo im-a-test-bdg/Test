@@ -25,7 +25,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpython3-dev cmake  # Add cmake for coremltools build
+          sudo apt-get install -y libpython3-dev cmake  # For coremltools build
 
       # Install dependencies with strict control
       - name: Install dependencies
@@ -40,14 +40,14 @@ jobs:
           pip install --no-deps tf2onnx==1.16.1
           pip install --no-deps six==1.16.0
           pip install --no-deps absl-py==0.15.0
-          pip install --no-deps astunparse==1 coolant.6.3
+          pip install --no-deps astunparse==1.6.3  # Fixed from astunparse==1
           # Install coremltools last, no deps to avoid overrides
           pip install --no-deps coremltools==7.2
           # Verify versions
           pip list | grep -E "numpy|typing-extensions|tensorflow|coremltools|tf2onnx|protobuf|six|absl-py|astunparse"
 
       # Create conversion script
-      - name: Create conversion script
+      - name: Create-conversion-script
         run: |
           cat << 'EOF' > convert_model.py
           import coremltools as ct
@@ -104,7 +104,7 @@ jobs:
           EOF
 
       # Run the conversion script
-      - name: Run conversion script
+      - name: Run-conversion-script
         run: |
           python convert_model.py
 
