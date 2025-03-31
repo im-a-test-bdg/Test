@@ -40,19 +40,30 @@ jobs:
 
           # Load the TensorFlow SavedModel from root directory with 'train' tag
           try:
-              model = tf.saved_model.load('./', tags=['train'])
+              loaded = tf.saved_model.load('./', tags=['train'])
               print("TensorFlow model loaded successfully from root directory with 'train' tag")
           except Exception as e:
               print(f"Error loading TensorFlow model: {e}")
               exit(1)
 
-          # Convert to Core ML model
+          # Get the concrete function from the loaded model
           try:
-              # Explicitly specify TensorFlow as source
+              # Assuming the serving_default signature is used; adjust if different
+              concrete_func = loaded.signatures['serving_default']
+              print("Concrete function extracted successfully")
+          except KeyError as e:
+              print(f"Error: 'serving_default' signature not found. Available signatures: {list(loaded.signatures.keys())}")
+              exit(1)
+          except Exception as e:
+              print(f"Error getting concrete function: {e}")
+              exit(1)
+
+          # Convert to Core ML model using the concrete function
+          try:
               mlmodel = ct.convert(
-                  model,
-                  inputs=[ct.TensorType(name='input', shape=(1, 224, 224, 3))],  # Example input shape; adjust as needed
-                  source='tensorflow'  # Added source parameter
+                  concrete_func,
+                  inputs=[ct.TensorType(name='input', shape=(1, 224, 224, 3))],  # Adjust shape as needed
+                  source='tensorflow'
               )
               print("Model converted to Core ML successfully")
           except Exception as e:
