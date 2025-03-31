@@ -26,25 +26,54 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install tensorflow==1.15.0
-          pip install coremltools==7.0
+          pip install coremltools==4.1 # Older version for better TF 1.x compatibility
 
-      # Convert TensorFlow model to Core ML
-      - name: Convert model to .mlmodel
+      # Create a Python script for conversion
+      - name: Create conversion script
         run: |
-          python -c "
-import coremltools as ct
-import tensorflow as tf
+          cat << 'EOF' > convert_model.py
+          import coremltools as ct
+          import tensorflow as tf
+          import os
 
-# Load the TensorFlow SavedModel
-model = tf.saved_model.load('Test')
+          # Ensure the Test directory exists
+          if not os.path.exists('Test'):
+              raise FileNotFoundError("Test directory not found")
 
-# Convert to Core ML model
-# Note: You may need to specify input/output names if the model requires it
-mlmodel = ct.convert(model)
+          # Load the TensorFlow SavedModel
+          try:
+              with tf.Session(graph=tf.Graph()) as sess:
+                  model = tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], 'Test')
+                  print("TensorFlow model loaded successfully")
+          except Exception as e:
+              print(f"Error loading TensorFlow model: {e}")
+              exit(1)
 
-# Save the Core ML model
-mlmodel.save('Test/model.mlmodel')
-"
+          # Convert to Core ML model
+          try:
+              # Basic conversion; adjust inputs/outputs if needed
+              mlmodel = ct.converters.tensorflow.convert(
+                  'Test',
+                  inputs={'input': [1, 224, 224, 3]}  # Example input shape; adjust as needed
+              )
+              print("Model converted to Core ML successfully")
+          except Exception as e:
+              print(f"Error converting to Core ML: {e}")
+              exit(1)
+
+          # Save the Core ML model
+          try:
+              mlmodel.save('Test/model.mlmodel')
+              print("Core ML model saved as Test/model.mlmodel")
+          except Exception as e:
+              print(f"Error saving Core ML model: {e}")
+              exit(1)
+          EOF
+
+      # Run the conversion script
+      - name: Run conversion script
+        run: |
+          python convert_model.py
 
       # Configure git
       - name: Setup git config
