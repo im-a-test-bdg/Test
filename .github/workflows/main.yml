@@ -15,8 +15,8 @@ jobs:
 
     - name: Download model from Kaggle
       run: |
-        #!/bin/bash
-        
+        start_time=$(date +%s)  # Record start time
+
         # Hardcoded Kaggle credentials
         export KAGGLE_USERNAME="josephcristini"
         export KAGGLE_KEY="c7709248cdacac4a44ea8beb53595247"
@@ -28,16 +28,35 @@ jobs:
         curl -L -u $KAGGLE_USERNAME:$KAGGLE_KEY \
           -o ~/Downloads/model.tar.gz \
           https://www.kaggle.com/api/v1/models/josephcristini/backdoor-ai/tensorFlow1/bdg/1/download
+        
+        end_time=$(date +%s)  # Record end time
+        duration=$((end_time - start_time))  # Calculate duration
+        echo "Model download time: $duration seconds"
 
     - name: Move model to repository and create new branch
       run: |
+        start_time=$(date +%s)  # Record start time
+        
+        # Move the downloaded model to the repository
         cp ~/Downloads/model.tar.gz ./  # Copy the model to the current directory
-        git config --local user.email "you@example.com"  # Set your email
-        git config --local user.name "Your Name"  # Set your name
+
+        # Set up Git configuration
+        git config --local user.email "actions@github.com"  # Use a generic actions email
+        git config --local user.name "GitHub Actions"  # Use a generic actions user
+
+        # Create a new branch
         git checkout -b update-model  # Create a new branch
+
+        # Add the model file to the commit
         git add model.tar.gz  # Add the model file
         git commit -m "Add model.tar.gz from Kaggle"  # Commit the file
+
+        # Push the branch to GitHub
         git push --set-upstream origin update-model  # Push the branch to GitHub
+        
+        end_time=$(date +%s)  # Record end time
+        duration=$((end_time - start_time))  # Calculate duration
+        echo "Move and commit time: $duration seconds"
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
@@ -46,3 +65,4 @@ jobs:
         body: "This pull request adds the model downloaded from Kaggle."
         head: update-model
         base: main  # Change to the base branch you want to merge into
+        token: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub's default token
