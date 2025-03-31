@@ -1,7 +1,7 @@
 name: Convert TensorFlow Model to Core ML and Create PR
 
 on:
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -19,17 +19,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9' # Python 3.9 for coremltools 7.2 and tf2onnx compatibility
+          python-version: '3.8' # Downgrade to 3.8 for better TF 2.5.0 compatibility
 
-      # Install dependencies (TensorFlow 2.5.0, coremltools 7.2, tf2onnx, and compatible versions)
+      # Install system dependencies for coremltools
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpython3-dev  # Required for coremltools
+
+      # Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install numpy==1.23.5  # Compatible with TF 2.5.0, coremltools 7.2, and tf2onnx
+          pip install numpy==1.19.5  # Matches TF 2.5.0 requirements
+          pip install typing-extensions==3.7.4  # Matches TF 2.5.0 requirements
           pip install tensorflow==2.5.0
           pip install coremltools==7.2
-          pip install tf2onnx==1.16.1  # Latest version compatible with TF 2.5.0
-          pip install protobuf==3.20.3  # Compatible with TF 2.5.0
+          pip install tf2onnx==1.16.1
+          pip install protobuf==3.20.3
 
       # Create a Python script for conversion
       - name: Create conversion script
@@ -44,22 +51,21 @@ jobs:
           # Step 1: Load the TensorFlow SavedModel and convert to ONNX
           try:
               model = tf.saved_model.load('./', tags=['train'])
-              print("TensorFlow model loaded successfully from root directory with 'train' tag")
-              # Get the concrete function for the 'tokens' signature
+              print("TensorFlow model loaded successfully")
               concrete_func = model.signatures['tokens']
-              print("Concrete function extracted successfully using 'tokens' signature")
+              print(f"Concrete function extracted: {concrete_func}")
               print(f"Input spec: {concrete_func.structured_input_signature}")
               
               # Convert to ONNX
               model_proto, _ = tf2onnx.convert.from_function(
                   concrete_func,
-                  input_signature=concrete_func.structured_input_signature[1],  # Use the input spec
+                  input_signature=concrete_func.structured_input_signature[1],
                   output_path='model.onnx'
               )
-              print("Model converted to ONNX successfully, saved as model.onnx")
+              print("Model converted to ONNX: model.onnx")
           except Exception as e:
-              print(f"Error converting TensorFlow model to ONNX: {e}")
-              exit(1)
+              print(f"Error converting to ONNX: {str(e)}")
+              raise
 
           # Step 2: Convert ONNX to Core ML
           try:
@@ -72,22 +78,21 @@ jobs:
                   ],
                   source='onnx'
               )
-              print("ONNX model converted to Core ML successfully")
-              # Print input descriptions for debugging
-              print("Core ML model input descriptions:")
+              print("ONNX model converted to Core ML")
+              print("Input descriptions:")
               for input_desc in mlmodel.input_description:
                   print(f"  {input_desc}")
           except Exception as e:
-              print(f"Error converting ONNX to Core ML: {e}")
-              exit(1)
+              print(f"Error converting to Core ML: {str(e)}")
+              raise
 
-          # Save the Core ML model in root directory
+          # Save the Core ML model
           try:
               mlmodel.save('model.mlmodel')
-              print("Core ML model saved as model.mlmodel")
+              print("Core ML model saved: model.mlmodel")
           except Exception as e:
-              print(f"Error saving Core ML model: {e}")
-              exit(1)
+              print(f"Error saving Core ML model: {str(e)}")
+              raise
           EOF
 
       # Run the conversion script
@@ -106,7 +111,7 @@ jobs:
         run: |
           git checkout -b feature/convert-to-mlmodel-$(date +%Y%m%d-%H%M%S)
           git add model.mlmodel
-          git commit -m "Convert TensorFlow NLP model to Core ML format via ONNX" || echo "No changes to commit"
+          git commit -m "Convert TensorFlow NLP model to Core ML via ONNX" || echo "No changes to commit"
           git push origin HEAD
 
       # Create Pull Request
@@ -117,7 +122,6 @@ jobs:
           branch: feature/convert-to-mlmodel-$(date +%Y%m%d-%H%M%S)
           title: "Convert TensorFlow NLP Model to Core ML Format via ONNX"
           body: |
-            This PR converts the TensorFlow NLP model (BERT-based) in the root directory to Core ML format (.mlmodel) using the 'train' tag and 'tokens' signature.
-            Uses TensorFlow 2.5.0, tf2onnx 1.16.1, and coremltools 7.2 with Python 3.9. Converted via ONNX to handle int32 inputs (input_ids, input_mask, segment_ids).
-            Automatically generated by GitHub Actions workflow.
+            This PR converts the TensorFlow NLP model (BERT-based) to Core ML format (.mlmodel) using 'train' tag and 'tokens' signature.
+            Uses TensorFlow 2.5.0, tf2onnx 1.16.1, and coremltools 7.2 with Python 3.8.
           commit-message: "Add converted Core ML model (model.mlmodel)"
