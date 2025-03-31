@@ -6,11 +6,23 @@ def convert_to_mlmodel(model_path):
     try:
         # Load the TensorFlow SavedModel with the appropriate tags
         print(f"Loading SavedModel from: {model_path}")
-        # Specify tags to load the correct MetaGraph (try tags=[] first)
         loaded_model = tf.saved_model.load(model_path, tags=[])
 
-        # Get the default serving signature
+        # Get the available signatures
         print("Available signatures:", list(loaded_model.signatures.keys()))
+
+        # Inspect each signature
+        for signature_name in loaded_model.signatures:
+            print(f"\nInspecting signature: {signature_name}")
+            signature = loaded_model.signatures[signature_name]
+            print("Inputs:", signature.inputs)
+            print("Outputs:", signature.outputs)
+
+        # If there's no serving_default signature, we can't proceed with conversion
+        if "serving_default" not in loaded_model.signatures:
+            raise ValueError("This SavedModel does not contain a 'serving_default' signature for inference. It might be a tokenizer or preprocessing model.")
+
+        # If we had a serving_default signature, we would proceed with conversion
         signature = loaded_model.signatures["serving_default"]
         print("Signature inputs:", signature.inputs)
         print("Signature outputs:", signature.outputs)
@@ -19,8 +31,6 @@ def convert_to_mlmodel(model_path):
         input_shape = [1, 384]  # Batch size 1, sequence length 384 (adjust as needed)
 
         # MobileBERT typically has inputs like "input_ids", "attention_mask", "token_type_ids"
-        # Outputs are often "logits" or "pooled_output" for classification tasks
-        # Adjust these based on the output of saved_model_cli or the signature above
         inputs = [
             ct.TensorType(name="input_ids", shape=input_shape, dtype=int),
             ct.TensorType(name="attention_mask", shape=input_shape, dtype=int),
