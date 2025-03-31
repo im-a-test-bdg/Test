@@ -3,9 +3,9 @@ import coremltools as ct
 import tensorflow as tf
 
 def convert_to_mlmodel(model_path):
-    # Load the TensorFlow 1 SavedModel
     try:
-        # Assuming the path points to a directory with saved_model.pb
+        # Load the TensorFlow 1 SavedModel
+        print(f"Loading SavedModel from: {model_path}")
         with tf.io.gfile.GFile(f"{model_path}/saved_model.pb", "rb") as f:
             graph_def = tf.compat.v1.GraphDef()
             graph_def.ParseFromString(f.read())
@@ -18,6 +18,7 @@ def convert_to_mlmodel(model_path):
         input_shape = [1, 384, 128]  # Adjust based on your model's requirements
 
         # Convert to Core ML
+        print("Converting to Core ML...")
         mlmodel = ct.convert(
             graph,
             inputs=[ct.TensorType(name="input_ids", shape=input_shape)],
