@@ -28,11 +28,17 @@ jobs:
             exit 1
           fi
 
+      # Debug: Check macOS architecture
+      - name: Debug - Check macOS Architecture
+        run: |
+          uname -m
+          sw_vers
+
       # Set up Python environment
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'  # Use Python 3.10 for better coremltools compatibility
+          python-version: '3.10'  # Stick with Python 3.10
 
       # Cache pip dependencies
       - name: Cache Dependencies
@@ -47,7 +53,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tensorflow==2.12.0 coremltools==7.2 numpy
+          pip install tensorflow==2.14.0 coremltools==7.2 numpy
           # Reinstall coremltools to ensure dependencies are met
           pip uninstall -y coremltools
           pip install coremltools==7.2
