@@ -47,7 +47,9 @@ jobs:
       # Step 6: Convert the model to Core ML
       - name: Convert to .mlmodel
         run: |
-          MODEL_PATH=$(cat model_path.txt | grep "Extracted model path:" | cut -d' ' -f3)
+          # Use sed to extract the full path after "Extracted model path:"
+          MODEL_PATH=$(sed -n 's/Extracted model path: //p' model_path.txt)
+          echo "Using MODEL_PATH: $MODEL_PATH"  # Debug: Confirm the path
           python convert_to_coreml.py "$MODEL_PATH"
 
       # Step 7: Create a GitHub Release
