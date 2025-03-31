@@ -1,4 +1,4 @@
-name: Download Model from Kaggle and Create Pull Request
+name: Download Model from Dropbox and Create Pull Request
 
 on:
   push:
@@ -13,21 +13,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Download model from Kaggle
+    - name: Download model from Dropbox
       run: |
         start_time=$(date +%s)  # Record start time
-
-        # Hardcoded Kaggle credentials
-        export KAGGLE_USERNAME="josephcristini"
-        export KAGGLE_KEY="c7709248cdacac4a44ea8beb53595247"
 
         # Create Downloads directory if it doesn't exist
         mkdir -p ~/Downloads
         
-        # Download the model
-        curl -L -u $KAGGLE_USERNAME:$KAGGLE_KEY \
-          -o ~/Downloads/model.tar.gz \
-          https://www.kaggle.com/api/v1/models/josephcristini/backdoor-ai/tensorFlow1/bdg/1/download
+        # Download the model from Dropbox using curl
+        curl -L -o ~/Downloads/model.tar.gz \
+          "https://www.dropbox.com/scl/fo/26n3gk8m0qsc18i98xt7i/ACLfsD60cBwT67x_sq5mShU?rlkey=0vffim7d8sp6gki4x6qinuxu9&st=slgevi14&dl=1" 
         
         end_time=$(date +%s)  # Record end time
         duration=$((end_time - start_time))  # Calculate duration
@@ -49,7 +44,7 @@ jobs:
 
         # Add the model file to the commit
         git add model.tar.gz  # Add the model file
-        git commit -m "Add model.tar.gz from Kaggle"  # Commit the file
+        git commit -m "Add model.tar.gz from Dropbox"  # Commit the file
 
         # Push the branch to GitHub
         git push --set-upstream origin update-model  # Push the branch to GitHub
@@ -61,8 +56,8 @@ jobs:
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v3
       with:
-        title: "Add model.tar.gz from Kaggle"
-        body: "This pull request adds the model downloaded from Kaggle."
+        title: "Add model.tar.gz from Dropbox"
+        body: "This pull request adds the model downloaded from Dropbox."
         head: update-model
         base: main  # Change to the base branch you want to merge into
         token: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub's default token
