@@ -1,68 +1,77 @@
-name: Download Model from Kaggle and Create Pull Request
+# .github/workflows/convert-to-mlmodel.yml
+
+name: Convert Model to MLModel
 
 on:
-  push:
+  workflow_dispatch:  # Allows manual triggering
+  push:               # Runs when changes are pushed to main
     branches:
-      - main  # Change to the branch you're using if different
+      - main
+    paths:
+      - 'model.tar.gz'  # Only runs when model.tar.gz changes
 
 jobs:
-  download:
-    runs-on: ubuntu-latest
-
+  convert-to-mlmodel:
+    runs-on: macos-latest  # macOS runner needed for coremltools
+    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+    # Checkout the repository
+    - name: Checkout Repository
+      uses: actions/checkout@v3
 
-    - name: Download model from Kaggle
-      run: |
-        start_time=$(date +%s)  # Record start time
-
-        # Hardcoded Kaggle credentials
-        export KAGGLE_USERNAME="josephcristini"
-        export KAGGLE_KEY="c7709248cdacac4a44ea8beb53595247"
-
-        # Create Downloads directory if it doesn't exist
-        mkdir -p ~/Downloads
-        
-        # Download the model
-        curl -L -u $KAGGLE_USERNAME:$KAGGLE_KEY \
-          -o ~/Downloads/model.tar.gz \
-          https://www.kaggle.com/api/v1/models/josephcristini/backdoor-ai/tensorFlow1/bdg/1/download
-        
-        end_time=$(date +%s)  # Record end time
-        duration=$((end_time - start_time))  # Calculate duration
-        echo "Model download time: $duration seconds"
-
-    - name: Move model to repository and create new branch
-      run: |
-        start_time=$(date +%s)  # Record start time
-        
-        # Move the downloaded model to the repository
-        cp ~/Downloads/model.tar.gz ./  # Copy the model to the current directory
-
-        # Set up Git configuration
-        git config --local user.email "actions@github.com"  # Use a generic actions email
-        git config --local user.name "GitHub Actions"  # Use a generic actions user
-
-        # Create a new branch
-        git checkout -b update-model  # Create a new branch
-
-        # Add the model file to the commit
-        git add model.tar.gz  # Add the model file
-        git commit -m "Add model.tar.gz from Kaggle"  # Commit the file
-
-        # Push the branch to GitHub
-        git push --set-upstream origin update-model  # Push the branch to GitHub
-        
-        end_time=$(date +%s)  # Record end time
-        duration=$((end_time - start_time))  # Calculate duration
-        echo "Move and commit time: $duration seconds"
-
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v3
+    # Set up Python environment
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
-        title: "Add model.tar.gz from Kaggle"
-        body: "This pull request adds the model downloaded from Kaggle."
-        head: update-model
-        base: main  # Change to the base branch you want to merge into
-        token: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub's default token
+        python-version: '3.x'
+
+    # Install dependencies
+    - name: Install Dependencies
+      run: |
+        pip install tensorflow coremltools
+
+    # Extract and convert the model
+    - name: Convert to MLModel
+      run: |
+        # Extract the tar.gz file
+        mkdir -p ./extracted_model
+        tar -xzf ./model.tar.gz -C ./extracted_model/
+
+        # Python script to convert
+        python - <<'EOF'
+        import tensorflow as tf
+        import coremltools as ct
+        import os
+
+        # Find the model directory in extracted files
+        model_dir = './extracted_model/'
+        for item in os.listdir(model_dir):
+            if os.path.isdir(os.path.join(model_dir, item)):
+                model_path = os.path.join(model_dir, item)
+                break
+
+        # Load TensorFlow model
+        tf_model = tf.keras.models.load_model(model_path)
+
+        # Convert to Core ML
+        mlmodel = ct.convert(
+            tf_model,
+            source='tensorflow',
+            convert_to='mlmodel'
+        )
+
+        # Save the converted model
+        output_path = './converted_model.mlmodel'
+        mlmodel.save(output_path)
+        EOF
+
+    # Commit and push the converted model
+    - name: Commit and Push to GitHub
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add ./converted_model.mlmodel
+        git commit -m "Add converted MLModel [$(date +'%Y-%m-%d')]" || echo "No changes to commit"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
