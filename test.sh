@@ -6,11 +6,12 @@ KAGGLE_KEY="ae9de1e12100d4a02f851f52e071f6ea"
 
 # Set variables
 DOWNLOAD_DIR=~/Downloads
-MODEL_TAR="$DOWNLOAD_DIR/mobilebert.tar.gz"  # Corrected to .tar.gz
+MODEL_TAR="$DOWNLOAD_DIR/mobilebert.tar.gz"
 EXTRACT_DIR="$DOWNLOAD_DIR/mobilebert_extracted"
 OUTPUT_MODEL="$DOWNLOAD_DIR/MobileBERT.mlmodel"
 
-# Create directories
+# Create extraction directory
+echo "Creating extraction directory..."
 mkdir -p "$EXTRACT_DIR"
 
 # Configure Kaggle CLI with hardcoded credentials
@@ -29,7 +30,7 @@ fi
 echo "Downloading MobileBERT from Kaggle..."
 kaggle models instances versions download google/mobilebert/tensorFlow1/uncased-l-24-h-128-b-512-a-4-f-4-opt/1 -p "$DOWNLOAD_DIR"
 
-# Check(download
+# Check download
 if [ $? -ne 0 ] || [ ! -f "$MODEL_TAR" ]; then
   echo "Error: Failed to download model. Check credentials or network."
   exit 1
